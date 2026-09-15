@@ -1,0 +1,61 @@
+{
+  "name": "@ebl/akkadian-phonemes",
+  "version": "0.3.1",
+  "description": "Synthesize Akkadian pronunciation from electronic Babylonian Library (eBL) IPA — emphatics, extra-long vowels, npm module. Selectable neural voice: Piper (VITS, default) or OmniVoice; reference engine: espeak-ng (WASM). Both keep the espeak emphatic + WSOLA vowel-length hybrid.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "ebl-tts": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "scripts/omnivoice_render.py",
+    "assets/kristin-reference.wav",
+    "TUNING.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc",
+    "fetch-voice": "node scripts/fetch-voice.mjs",
+    "demo": "node scripts/gen-demo.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "akkadian",
+    "cuneiform",
+    "assyriology",
+    "ebl",
+    "ipa",
+    "phoneme",
+    "tts",
+    "text-to-speech",
+    "piper",
+    "vits",
+    "onnx",
+    "espeak-ng",
+    "speech-synthesis",
+    "semitic"
+  ],
+  "author": "CloudRaider / Theosophia",
+  "license": "MIT",
+  "homepage": "https://github.com/ElectronicBabylonianLiterature",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "espeak-ng": "^1.0.2",
+    "onnxruntime-node": "^1.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.9.3"
+  }
+}

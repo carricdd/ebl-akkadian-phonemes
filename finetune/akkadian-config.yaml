@@ -1,0 +1,25 @@
+# Piper (VITS) fine-tune — Akkadian Arabic-timbre voice for eBL
+# Corpus: Arabic Speech Corpus (Nawar Halabi, CC-BY 4.0), single male MSA speaker
+# Node: rog18 (RTX 4060 Laptop 8GB, shared w/ ollama ~3GB) — conservative footprint
+seed_everything: 1234
+trainer:
+  accelerator: gpu
+  devices: [0]
+  precision: 32
+  max_epochs: -1
+  default_root_dir: /home/carric/tts-finetune/runs/akkadian-ar
+  log_every_n_steps: 25
+  num_sanity_val_steps: 0
+model:
+  sample_rate: 22050
+  num_speakers: 1
+data:
+  csv_path: /home/carric/tts-finetune/metadata.csv
+  audio_dir: /home/carric/tts-finetune/corpus/arabic-speech-corpus/wav
+  cache_dir: /home/carric/tts-finetune/cache
+  espeak_voice: ar
+  config_path: /home/carric/tts-finetune/akkadian-ar.onnx.json
+  voice_name: akkadian-ar
+  batch_size: 8
+  num_workers: 2
+  validation_split: 0.02

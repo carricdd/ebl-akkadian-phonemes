@@ -1,0 +1,37 @@
+MIT License
+
+Copyright (c) 2026 CloudRaider / Theosophia
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------
+THIRD-PARTY NOTICE
+
+This package's own code (the eBL-IPA normalizer, the DSP/WSOLA layer, the
+synthesis API, and the CLI) is licensed MIT as above. It was written from
+scratch; no GPL source was copied.
+
+However, the RUNTIME speech engine is a dependency, not part of this code:
+
+  * espeak-ng (npm "espeak-ng", eSpeak-NG compiled to WASM) is licensed
+    GPL-3.0-or-later. It is required at runtime (mode:'reference').
+
+If you redistribute this package together with espeak-ng, the combined
+distribution is subject to the GPL-3.0 terms of espeak-ng. Consult a lawyer for
+your specific distribution scenario. See README "Licensing" for details.
