@@ -13,10 +13,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { DEFAULT_VOICE } from './piper.js';
+import { DEFAULT_VOICE, EMPHATIC_VOICE, KNOWN_VOICES } from './piper.js';
 
-const BASE =
-  'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/kristin/medium';
+const BASE_ROOT = 'https://huggingface.co/rhasspy/piper-voices/resolve/main';
 
 /**
  * SHA-256 of the upstream files, verified against huggingface.co on 2026-07-19.
@@ -27,6 +26,8 @@ export const VOICE_SHA256: Record<string, string> = {
     '5849957f929cbf720c258f8458692d6103fff2f0e3d3b19c8259474bb06a18d4',
   [`${DEFAULT_VOICE}.onnx.json`]:
     '5681426d4aead22195de70531eeeeddb46493cfaffc5764b2ea3db73428b651c',
+  [`${EMPHATIC_VOICE}.onnx`]: KNOWN_VOICES[EMPHATIC_VOICE].sha256.onnx,
+  [`${EMPHATIC_VOICE}.onnx.json`]: KNOWN_VOICES[EMPHATIC_VOICE].sha256.json,
 };
 
 export function defaultVoiceDir(): string {
@@ -50,7 +51,8 @@ async function download(
     }
     log(`  present but hash does not match — re-downloading ${name}\n`);
   }
-  const url = `${BASE}/${name}`;
+  const voiceName = name.replace(/\.onnx(\.json)?$/, '');
+  const url = `${BASE_ROOT}/${KNOWN_VOICES[voiceName]?.hfDir ?? KNOWN_VOICES[DEFAULT_VOICE].hfDir}/${name}`;
   log(`  downloading ${url}\n`);
   const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} for ${url}`);
@@ -70,18 +72,28 @@ async function download(
   return dest;
 }
 
-/** Download the default neural voice into `dir`. Returns the directory used. */
+/**
+ * Download a neural voice into `dir`. Returns the directory used.
+ * `name` defaults to the shipped English voice; pass EMPHATIC_VOICE
+ * (`ar_JO-kareem-medium`) for the Arabic-trained voice that renders ṭ/ṣ/q.
+ */
 export async function fetchVoice(
   dir: string = defaultVoiceDir(),
   log: (s: string) => void = (s) => process.stdout.write(s),
+  name: string = DEFAULT_VOICE,
 ): Promise<string> {
+  if (!KNOWN_VOICES[name])
+    throw new Error(`unknown voice "${name}"; known: ${Object.keys(KNOWN_VOICES).join(', ')}`);
   mkdirSync(dir, { recursive: true });
-  log(`Fetching Piper voice "${DEFAULT_VOICE}" into ${dir}\n`);
-  await download(`${DEFAULT_VOICE}.onnx.json`, dir, log);
-  await download(`${DEFAULT_VOICE}.onnx`, dir, log);
+  log(`Fetching Piper voice "${name}" into ${dir}\n`);
+  await download(`${name}.onnx.json`, dir, log);
+  await download(`${name}.onnx`, dir, log);
   log(
-    `\nDone. Neural mode is now available.\n` +
-      `Verify with:  ebl-tts --ipa "[a.ˈbaː.lu]" -o abalu.wav\n`,
+    name === EMPHATIC_VOICE
+      ? `\nDone. Emphatic-bearing words (ṭ ṣ q) now render on the Arabic-trained voice.\n` +
+          `Verify with:  ebl-tts --ipa "[ˈsˤaː.bu]" --detail -o sabu.wav\n`
+      : `\nDone. Neural mode is now available.\n` +
+          `Verify with:  ebl-tts --ipa "[a.ˈbaː.lu]" -o abalu.wav\n`,
   );
   return dir;
 }

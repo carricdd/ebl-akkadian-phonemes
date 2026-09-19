@@ -83,6 +83,13 @@ export interface SynthesizeOptions {
     wpm?: number;
     /** NEURAL only: path to a Piper .onnx voice (its .onnx.json must sit beside it). */
     voicePath?: string;
+    /**
+     * 0.3.2: path to an ARABIC-trained Piper voice used for emphatic-bearing words
+     * under emphatics:'auto' (and for any word when voicePath itself is Arabic-trained).
+     * Default: `ar_JO-kareem-medium` if installed (`ebl-tts --fetch-voice arabic`).
+     * Set to '' to disable and fall back to the espeak reference engine as in 0.3.1.
+     */
+    emphaticVoicePath?: string;
     /** NEURAL only: VITS length_scale, higher = slower. Default from the voice config. */
     lengthScale?: number;
     /** NEURAL only: VITS noise_scale. Default from the voice config. */
@@ -156,6 +163,9 @@ export declare function explain(ipa: string, opts?: SynthesizeOptions): {
         ultralongVowelIndices: number[];
         vowelCount: number;
         approximations: string[];
+        /** 0.3.2: the token stream an Arabic-trained voice (ar_JO-kareem-medium) receives */
+        arabicTokens: string[];
+        emphaticVoiceInstalled: string | null;
     };
     units: {
         note?: string | undefined;

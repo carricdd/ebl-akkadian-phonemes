@@ -23,6 +23,10 @@ export {
 export type { OmniVoiceOptions, ArpabetResult } from './omnivoice.js';
 export {
   DEFAULT_VOICE,
+  EMPHATIC_VOICE,
+  KNOWN_VOICES,
+  voiceProfile,
+  emphaticVoicePath,
   loadVoice,
   resolveVoicePath,
   voiceAvailable,
@@ -31,11 +35,12 @@ export {
   renderPiperTokens,
   VoiceNotFoundError,
 } from './piper.js';
-export type { PiperVoiceConfig, PiperRenderOptions, LoadedVoice } from './piper.js';
+export type { PiperVoiceConfig, PiperRenderOptions, LoadedVoice, KnownVoice, VoiceProfile } from './piper.js';
 export {
   normalize,
   toEspeakString,
   toPiperPhonemes,
+  toPiperPhonemesFor,
   normalizeForPiper,
 } from './normalizer.js';
 export type {

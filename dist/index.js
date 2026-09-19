@@ -6,7 +6,7 @@
  */
 export { synthesize, synthesizeDetailed, explain } from './synthesize.js';
 export { toArpabet, renderOmniVoiceUnits, omnivoiceAvailable, OmniVoiceError, OMNIVOICE_REF_VOICE, } from './omnivoice.js';
-export { DEFAULT_VOICE, loadVoice, resolveVoicePath, voiceAvailable, voiceSearchPaths, phonemesToIds, renderPiperTokens, VoiceNotFoundError, } from './piper.js';
-export { normalize, toEspeakString, toPiperPhonemes, normalizeForPiper, } from './normalizer.js';
+export { DEFAULT_VOICE, EMPHATIC_VOICE, KNOWN_VOICES, voiceProfile, emphaticVoicePath, loadVoice, resolveVoicePath, voiceAvailable, voiceSearchPaths, phonemesToIds, renderPiperTokens, VoiceNotFoundError, } from './piper.js';
+export { normalize, toEspeakString, toPiperPhonemes, toPiperPhonemesFor, normalizeForPiper, } from './normalizer.js';
 export { parseWav, encodeWav, durationSeconds, wsolaStretch, trimSilence, concatCrossfade, findVowelNuclei, stretchSpan, } from './dsp.js';
 //# sourceMappingURL=index.js.map

@@ -1,6 +1,27 @@
 import type { Pcm } from './dsp.js';
 /** The voice this package ships against. Public-domain lineage — see README §Licensing. */
 export declare const DEFAULT_VOICE = "en_US-kristin-medium";
+/**
+ * The Arabic-trained voice used for emphatic-bearing words (0.3.2). Trained on
+ * espeak-ng `ar` output, so s̪ t̪ q χ ʔ ħ ʕ and phonemic ː are in-distribution.
+ * Same rhasspy/piper-voices lineage and license terms as the default voice.
+ */
+export declare const EMPHATIC_VOICE = "ar_JO-kareem-medium";
+export type VoiceProfile = 'english' | 'arabic';
+export interface KnownVoice {
+    name: string;
+    /** path under https://huggingface.co/rhasspy/piper-voices/resolve/main/ */
+    hfDir: string;
+    profile: VoiceProfile;
+    sha256: {
+        onnx: string;
+        json: string;
+    };
+}
+/** Voices this package knows how to fetch and verify. */
+export declare const KNOWN_VOICES: Record<string, KnownVoice>;
+/** Profile of a loaded voice, from the espeak base it was trained on. */
+export declare function voiceProfile(config: PiperVoiceConfig): VoiceProfile;
 export interface PiperVoiceConfig {
     audio: {
         sample_rate: number;
@@ -35,8 +56,10 @@ export interface PiperRenderOptions {
     /** Multi-speaker voices only. Default 0. */
     speakerId?: number;
 }
-/** Candidate locations for the voice, in priority order. */
-export declare function voiceSearchPaths(): string[];
+/** Candidate locations for a voice (default: the shipped English voice), in priority order. */
+export declare function voiceSearchPaths(name?: string): string[];
+/** Path of the Arabic emphatic voice if it is installed, else null (no throw). */
+export declare function emphaticVoicePath(): string | null;
 export declare class VoiceNotFoundError extends Error {
     constructor(searched: string[]);
 }

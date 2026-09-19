@@ -1,7 +1,7 @@
 {
   "name": "@ebl/akkadian-phonemes",
-  "version": "0.3.1",
-  "description": "Synthesize Akkadian pronunciation from electronic Babylonian Library (eBL) IPA — emphatics, extra-long vowels, npm module. Selectable neural voice: Piper (VITS, default) or OmniVoice; reference engine: espeak-ng (WASM). Both keep the espeak emphatic + WSOLA vowel-length hybrid.",
+  "version": "0.3.2",
+  "description": "Synthesize Akkadian pronunciation from electronic Babylonian Library (eBL) IPA \u2014 emphatics \u1e6d \u1e63, uvular q, \u1e2b and the three vowel lengths on an Arabic-trained Piper voice (0.3.2, measured), npm module. Neural voices: Piper (VITS) English or Arabic, or OmniVoice; reference engine: espeak-ng (WASM).",
   "type": "module",
   "exports": {
     ".": {
@@ -26,7 +26,8 @@
     "prepublishOnly": "tsc",
     "fetch-voice": "node scripts/fetch-voice.mjs",
     "demo": "node scripts/gen-demo.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "review-samples": "node scripts/gen-review-samples.mjs"
   },
   "keywords": [
     "akkadian",

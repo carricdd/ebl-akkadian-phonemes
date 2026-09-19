@@ -91,12 +91,29 @@ export declare function toEspeakString(units: PhonemeUnit[]): string;
  * OOV token (e.g. e/o/ɡ if the Arabic voice lacks them) should be remapped to
  * the nearest in-inventory phone at synth time. See scripts/ebl-to-piper.mjs.
  */
+/**
+ * Which phoneme inventory the loaded Piper voice was TRAINED on.
+ *   'english' — en_US-kristin-medium (espeak `en-us`): no emphatics, no q, no χ.
+ *   'arabic'  — ar_JO-kareem-medium (espeak `ar`): emphatics, q, χ, ʔ, ħ, ʕ and
+ *               phonemic vowel length are all in-distribution.
+ * 0.3.2 (Enrique Jiménez review, 2026-09-17: "the emphatics are not yet
+ * distinguishable from non-emphatics"). Measured with Praat on ˈsaː.bu vs ˈsˤaː.bu:
+ * espeak `s[` moves the following vowel's F2 by 1 Hz (1405→1404); the English voice
+ * with ˤ moves it UP (1336→1588, wrong direction); the Arabic voice with the tokens
+ * espeak-ar actually emits for ص (s + U+032A, then the backed vowel allophone
+ * `a.`) moves it DOWN 177 Hz (1359→1182) and drops the sibilant centre of gravity.
+ */
+export type VoiceProfile = 'english' | 'arabic';
+/** Piper token stream for a voice profile. 'english' keeps the 0.3.1 mapping. */
+export declare function toPiperPhonemesFor(units: PhonemeUnit[], profile: VoiceProfile): string[];
 export declare function toPiperPhonemes(units: PhonemeUnit[]): string[];
 export interface PiperNormalizeResult {
     /** ordered phoneme tokens for piper's phonemes_to_ids() */
     tokens: string[];
-    /** the espeak base the shipped neural voice was trained on (`en` for en_US-kristin) */
-    espeakVoice: 'en';
+    /** the espeak base the neural voice was trained on (`en` for en_US-kristin, `ar` for ar_JO-kareem) */
+    espeakVoice: 'en' | 'ar';
+    /** which inventory the tokens were derived for */
+    profile: VoiceProfile;
     /** true if any vowel is ultralong (synth must stretch — no stock voice has a ːː) */
     hasUltralong: boolean;
     /**
@@ -115,5 +132,7 @@ export interface PiperNormalizeResult {
  * Convenience: eBL IPA string -> Piper phoneme tokens for the shipped neural
  * voice. This is the wiring point between eBL's IPA and the audio engine.
  */
-export declare function normalizeForPiper(ipa: string, opts?: NormalizeOptions): PiperNormalizeResult;
+export declare function normalizeForPiper(ipa: string, opts?: NormalizeOptions & {
+    profile?: VoiceProfile;
+}): PiperNormalizeResult;
 //# sourceMappingURL=normalizer.d.ts.map

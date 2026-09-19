@@ -26,6 +26,46 @@ import type { Pcm } from './dsp.js';
 
 /** The voice this package ships against. Public-domain lineage — see README §Licensing. */
 export const DEFAULT_VOICE = 'en_US-kristin-medium';
+/**
+ * The Arabic-trained voice used for emphatic-bearing words (0.3.2). Trained on
+ * espeak-ng `ar` output, so s̪ t̪ q χ ʔ ħ ʕ and phonemic ː are in-distribution.
+ * Same rhasspy/piper-voices lineage and license terms as the default voice.
+ */
+export const EMPHATIC_VOICE = 'ar_JO-kareem-medium';
+
+export type VoiceProfile = 'english' | 'arabic';
+
+export interface KnownVoice {
+  name: string;
+  /** path under https://huggingface.co/rhasspy/piper-voices/resolve/main/ */
+  hfDir: string;
+  profile: VoiceProfile;
+  sha256: { onnx: string; json: string };
+}
+
+/** Voices this package knows how to fetch and verify. */
+export const KNOWN_VOICES: Record<string, KnownVoice> = {
+  [DEFAULT_VOICE]: {
+    name: DEFAULT_VOICE,
+    hfDir: 'en/en_US/kristin/medium',
+    profile: 'english',
+    sha256: { onnx: '', json: '' }, // filled from fetch-voice.ts VOICE_SHA256 (kept there for 0.3.1 compat)
+  },
+  [EMPHATIC_VOICE]: {
+    name: EMPHATIC_VOICE,
+    hfDir: 'ar/ar_JO/kareem/medium',
+    profile: 'arabic',
+    sha256: {
+      onnx: '9e95cab07b679da603bba17c4dec7ab3111320571964ee95c0379603c086491e',
+      json: 'ea6d9b9d9076dbdb6bf5c98c6a141ef154959d2359709b37855727964e7d6c4d',
+    },
+  },
+};
+
+/** Profile of a loaded voice, from the espeak base it was trained on. */
+export function voiceProfile(config: PiperVoiceConfig): VoiceProfile {
+  return (config.espeak?.voice ?? '').toLowerCase().startsWith('ar') ? 'arabic' : 'english';
+}
 
 const BOS = '^';
 const EOS = '$';
@@ -59,17 +99,24 @@ export interface PiperRenderOptions {
   speakerId?: number;
 }
 
-/** Candidate locations for the voice, in priority order. */
-export function voiceSearchPaths(): string[] {
+/** Candidate locations for a voice (default: the shipped English voice), in priority order. */
+export function voiceSearchPaths(name: string = DEFAULT_VOICE): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
   const paths: string[] = [];
-  if (process.env.EBL_PIPER_VOICE) paths.push(process.env.EBL_PIPER_VOICE);
-  if (process.env.EBL_VOICE_DIR)
-    paths.push(join(process.env.EBL_VOICE_DIR, `${DEFAULT_VOICE}.onnx`));
-  paths.push(join(homedir(), '.cache', 'ebl-akkadian-phonemes', 'voices', `${DEFAULT_VOICE}.onnx`));
-  paths.push(join(here, '..', 'voices', `${DEFAULT_VOICE}.onnx`)); // package-local
-  paths.push(join(process.cwd(), 'voices', `${DEFAULT_VOICE}.onnx`));
+  if (name === DEFAULT_VOICE && process.env.EBL_PIPER_VOICE) paths.push(process.env.EBL_PIPER_VOICE);
+  if (name === EMPHATIC_VOICE && process.env.EBL_PIPER_EMPHATIC_VOICE)
+    paths.push(process.env.EBL_PIPER_EMPHATIC_VOICE);
+  if (process.env.EBL_VOICE_DIR) paths.push(join(process.env.EBL_VOICE_DIR, `${name}.onnx`));
+  paths.push(join(homedir(), '.cache', 'ebl-akkadian-phonemes', 'voices', `${name}.onnx`));
+  paths.push(join(here, '..', 'voices', `${name}.onnx`)); // package-local
+  paths.push(join(process.cwd(), 'voices', `${name}.onnx`));
   return paths;
+}
+
+/** Path of the Arabic emphatic voice if it is installed, else null (no throw). */
+export function emphaticVoicePath(): string | null {
+  for (const p of voiceSearchPaths(EMPHATIC_VOICE)) if (existsSync(p)) return p;
+  return null;
 }
 
 export class VoiceNotFoundError extends Error {

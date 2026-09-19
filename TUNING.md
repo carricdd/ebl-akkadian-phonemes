@@ -25,8 +25,11 @@ stop cannot be represented. Those losses appear in `--detail` output.
 
 Both routes use the same hybrid safeguards by default:
 
-* `--emphatics auto` routes words containing ṭ or ṣ to the espeak reference
-  engine, because neither neural route reliably produces the contrast.
+* `--emphatics auto` routes words containing ṭ ṣ q or ḫ to the Arabic-trained
+  Piper voice (`ebl-tts --fetch-voice arabic`; 0.3.2), where those consonants
+  are trained tokens; without it, ṭ/ṣ words fall to the espeak reference engine.
+  For a dictionary prefer `--voice arabic` throughout: one timbre, and the
+  English voice does not hold a long vowel (README §8, 0.3.2 review result).
 * `--lengths 3tier` keeps eBL's extra-long vowel as a distinct duration by
   WSOLA stretching the identified vowel after neural rendering.
 * `--emphatic pharyngealized` is the default reconstruction. Use

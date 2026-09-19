@@ -32,7 +32,7 @@
  */
 import { normalize, normalizeForPiper, toEspeakString, toPiperPhonemes, } from './normalizer.js';
 import { renderPhonemes } from './espeak.js';
-import { renderPiperTokens, DEFAULT_VOICE } from './piper.js';
+import { renderPiperTokens, loadVoice, voiceProfile, emphaticVoicePath, DEFAULT_VOICE, EMPHATIC_VOICE } from './piper.js';
 import { renderOmniVoiceUnits, OMNIVOICE_REF_VOICE } from './omnivoice.js';
 import { concatCrossfade, encodeWav, findVowelNuclei, stretchSpan, trimSilence, wsolaStretch, } from './dsp.js';
 /**
@@ -111,8 +111,17 @@ async function renderReference(ipa, opts, factor) {
 // NEURAL engine (Piper VITS)
 // ---------------------------------------------------------------------------
 async function renderNeural(ipa, opts, factor) {
-    const n = normalizeForPiper(ipa, { emphatic: opts.emphatic, lengths: opts.lengths });
     const engine = opts.engine ?? 'piper';
+    let profile = 'english';
+    if (engine === 'piper') {
+        try {
+            profile = voiceProfile((await loadVoice(opts.voicePath)).config);
+        }
+        catch {
+            profile = 'english'; // voice missing: renderPiperTokens below raises the real error
+        }
+    }
+    const n = normalizeForPiper(ipa, { emphatic: opts.emphatic, lengths: opts.lengths, profile });
     // notes describe THIS engine's approximations, so scope them per branch: the
     // Piper IPA-mapping notes (n.notes) are meaningless on the OmniVoice ARPABET path.
     const notes = [];
@@ -176,6 +185,26 @@ async function renderNeural(ipa, opts, factor) {
     else if (nuclei.length > target) {
         span = nuclei[target]; // best effort, ordinal match
     }
+    // 0.3.2 (Enrique Jiménez, 2026-09-17: "the extra-long vowels are not yet represented").
+    // Measured cause: the nucleus detector often returned a 30-70 ms sliver for a
+    // word-final û/ê, so the 1.8× stretch added ~40 ms and was inaudible. A word-final
+    // ultralong vowel is followed by nothing, so its true span runs from the nucleus
+    // onset to the end of the word: extend it there, and never stretch a span
+    // shorter than 120 ms (a real long vowel on this voice is 150-260 ms).
+    if (span && target === n.vowelCount - 1) {
+        const end = trimmed.samples.length;
+        const minSpan = Math.round(0.12 * trimmed.sampleRate);
+        span = { start: Math.min(span.start, end - minSpan), end };
+        if (span.start < 0)
+            span.start = 0;
+        how = 'nucleus-stretch';
+    }
+    else if (span && span.end - span.start < Math.round(0.12 * trimmed.sampleRate)) {
+        const minSpan = Math.round(0.12 * trimmed.sampleRate);
+        const mid = Math.round((span.start + span.end) / 2);
+        span = { start: Math.max(0, mid - minSpan / 2), end: Math.min(trimmed.samples.length, mid + minSpan / 2) };
+        notes.push('extra-long vowel nucleus detected shorter than 120 ms; widened to 120 ms before stretching');
+    }
     if (!span) {
         // Detector found nothing usable: stretch the whole word by the equivalent
         // amount of ADDED time rather than silently ignoring the length contrast.
@@ -204,6 +233,26 @@ async function renderNeural(ipa, opts, factor) {
 /** Does this word contain an emphatic (ṭ/ṣ in any of eBL's notations)? */
 function hasEmphatic(ipa, opts) {
     return normalize(ipa, { emphatic: opts.emphatic, lengths: opts.lengths }).units.some((u) => u.emphatic != null);
+}
+/**
+ * Consonants the English voice cannot say and the Arabic-trained voice can:
+ * emphatics ṭ/ṣ, uvular q (folded to k on the English voice) and ḫ [x]~[χ]
+ * (folded to h). 0.3.2: these words go to the Arabic voice under emphatics:'auto'.
+ */
+function needsArabicInventory(ipa, opts) {
+    const units = normalize(ipa, { emphatic: opts.emphatic, lengths: opts.lengths }).units;
+    const found = new Set();
+    for (const u of units) {
+        if (u.kind !== 'consonant')
+            continue;
+        if (u.emphatic != null)
+            found.add(u.ipa);
+        else if (u.ipa === 'q')
+            found.add('q');
+        else if (u.ipa === 'x' || u.ipa === 'χ')
+            found.add('ḫ');
+    }
+    return { yes: found.size > 0, why: [...found].join(' ') };
 }
 /**
  * Synthesize eBL IPA to WAV bytes.
@@ -240,10 +289,23 @@ export async function synthesizeDetailed(ipa, opts = {}) {
             engine = 'reference';
             engineReason = "emphatics:'reference' requested";
         }
-        else if (policy === 'auto' && hasEmphatic(ipa, opts)) {
-            engine = 'reference';
-            engineReason =
-                "word contains an emphatic (ṭ/ṣ) and emphatics:'auto' is set; rendered on the reference engine so the pharyngealized contrast is genuine. Pass emphatics:'neural' to keep one voice.";
+        else if (policy === 'auto' && needsArabicInventory(ipa, opts).yes) {
+            const why = needsArabicInventory(ipa, opts).why;
+            const ar = opts.emphaticVoicePath === undefined ? emphaticVoicePath() : opts.emphaticVoicePath || null;
+            const explicitIsArabic = opts.voicePath ? voiceProfile((await loadVoice(opts.voicePath)).config) === 'arabic' : false;
+            if (explicitIsArabic) {
+                // caller already chose an Arabic-trained voice: the emphatics are in-distribution there
+            }
+            else if (ar && (opts.engine ?? 'piper') === 'piper') {
+                opts = { ...opts, voicePath: ar };
+                engineReason =
+                    `word contains ${why} and emphatics:'auto' is set; rendered on the Arabic-trained neural voice ${EMPHATIC_VOICE}, where s̪ t̪ q χ are trained tokens (measured: following-vowel F2 lowered ~150 Hz for s̪/t̪). Pass emphatics:'neural' to keep the default voice, or emphaticVoicePath:'' for the espeak reference engine.`;
+            }
+            else if (hasEmphatic(ipa, opts)) {
+                engine = 'reference';
+                engineReason =
+                    "word contains an emphatic (ṭ/ṣ) and emphatics:'auto' is set; no Arabic-trained voice is installed (ebl-tts --fetch-voice arabic), so it is rendered on the reference engine. Pass emphatics:'neural' to keep one voice.";
+            }
         }
     }
     if (engine === 'reference') {
@@ -291,6 +353,7 @@ export function explain(ipa, opts = {}) {
     }
     const norm = normalize(ipa, { emphatic: opts.emphatic, lengths: opts.lengths });
     const piper = normalizeForPiper(ipa, { emphatic: opts.emphatic, lengths: opts.lengths });
+    const arabic = normalizeForPiper(ipa, { emphatic: opts.emphatic, lengths: opts.lengths, profile: 'arabic' });
     return {
         ipa,
         mode: opts.mode ?? 'neural',
@@ -305,6 +368,9 @@ export function explain(ipa, opts = {}) {
             ultralongVowelIndices: piper.ultralongVowelIndices,
             vowelCount: piper.vowelCount,
             approximations: piper.notes,
+            /** 0.3.2: the token stream an Arabic-trained voice (ar_JO-kareem-medium) receives */
+            arabicTokens: arabic.tokens,
+            emphaticVoiceInstalled: emphaticVoicePath(),
         },
         units: norm.units.map((u) => ({
             ipa: u.ipa,

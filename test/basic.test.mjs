@@ -21,6 +21,8 @@ import {
   explain,
   findVowelNuclei,
   voiceAvailable,
+  emphaticVoicePath,
+  toPiperPhonemesFor,
   phonemesToIds,
   wsolaStretch,
 } from '../dist/index.js';
@@ -180,10 +182,41 @@ test("routing: emphatic:'ejective' always falls back to the reference engine", a
   assert.match(r.engineReason, /ejective/);
 });
 
-test("routing: emphatics:'auto' (default) routes emphatic words to reference", async () => {
+test("routing: emphatics:'auto' (default) routes emphatic words to the Arabic voice, else reference", async () => {
   const r = await synthesizeDetailed('[ˈsˤaː.bu]');
+  if (emphaticVoicePath()) {
+    assert.equal(r.engine, 'neural');
+    assert.match(r.voice, /ar_JO-kareem/);
+    assert.match(r.phonemes, /s ̪/); // espeak-ar's trained emphatic token, not ˤ
+  } else {
+    assert.equal(r.engine, 'reference');
+  }
+  assert.match(r.engineReason, /sˤ|emphatic/);
+});
+
+test("routing: emphaticVoicePath:'' restores the 0.3.1 reference fallback", async () => {
+  const r = await synthesizeDetailed('[ˈsˤaː.bu]', { emphaticVoicePath: '' });
   assert.equal(r.engine, 'reference');
-  assert.match(r.engineReason, /emphatic/);
+});
+
+test('routing: q and ḫ words go to the Arabic voice under auto (uvular/velar are native there)', async () => {
+  const r = await synthesizeDetailed('[ˈqaː.tu]');
+  if (emphaticVoicePath()) {
+    assert.match(r.voice, /ar_JO-kareem/);
+    assert.match(r.phonemes, /^ˈ q a ː t u/);
+  } else {
+    assert.equal(r.engine, 'neural'); // no Arabic voice: q folds to k on the English voice as in 0.3.1
+  }
+});
+
+test('normalizer: transliteration-style ṭ/ṣ (precomposed and t+U+0323) are accepted as emphatics', () => {
+  for (const ipa of ['[ˈṭuːp.pu]', '[ˈt\u0323uːp.pu]', '[ˈᵵuːp.pu]', '[ˈtˤuːp.pu]']) {
+    const n = normalize(ipa);
+    assert.equal(n.units.filter((u) => u.emphatic).length, 1, ipa);
+  }
+  assert.deepEqual(toPiperPhonemesFor(normalize('[ˈsˤaː.bu]').units, 'arabic'), ['ˈ', 's', '\u032a', 'a', '.', 'ː', 'b', 'u']);
+  assert.deepEqual(toPiperPhonemesFor(normalize('[ˈqaː.tu]').units, 'arabic'), ['ˈ', 'q', 'a', 'ː', 't', 'u']);
+  assert.deepEqual(toPiperPhonemesFor(normalize('[ˈxaː.ru]').units, 'arabic'), ['ˈ', 'χ', 'a', 'ː', 'r', 'u']);
 });
 
 test('routing: a word with no emphatic is NOT diverted', { ...neural }, async () => {
@@ -387,6 +420,6 @@ test('cli: --detail explains an automatic engine switch', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'ebl-cli-'));
   const r = await cli(['--ipa', '[ˈsˤaː.bu]', '-o', join(dir, 'sabu.wav'), '--detail']);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /engine=reference/);
-  assert.match(r.stdout, /engine reason:.*emphatic/);
+  assert.match(r.stdout, emphaticVoicePath() ? /voice=.*ar_JO-kareem/ : /engine=reference/);
+  assert.match(r.stdout, /engine reason:.*(sˤ|emphatic)/);
 });

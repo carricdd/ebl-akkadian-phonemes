@@ -38,6 +38,9 @@ const U = {
     TIE: '͡', // ͡  (combining double inverted breve = affricate tie)
     EMPHATIC_T: 'ᵵ', // ᵵ  LATIN SMALL LETTER T WITH MIDDLE TILDE
     EMPHATIC_S: 'ᵴ', // ᵴ  LATIN SMALL LETTER S WITH MIDDLE TILDE
+    DOT_BELOW: '\u0323', // ̣  combining dot below (Assyriological ṭ/ṣ typed as t + U+0323)
+    T_DOT: 'ṭ', // ṭ U+1E6D — the transliteration form; accepted as an emphatic input (0.3.2)
+    S_DOT: 'ṣ', // ṣ U+1E63
 };
 // Plain (non-emphatic) consonant map: eBL-IPA symbol -> espeak mnemonic.
 const CONSONANTS = {
@@ -188,13 +191,16 @@ export function normalize(ipa, opts = {}) {
             continue;
         }
         // --- emphatic single-codepoint placeholders ᵵ / ᵴ ---
-        if (c === U.EMPHATIC_T || c === U.EMPHATIC_S) {
+        const dotBelowNext = (c === 't' || c === 's') && chars[i + 1] === U.DOT_BELOW;
+        if (c === U.EMPHATIC_T || c === U.EMPHATIC_S || c === U.T_DOT || c === U.S_DOT || dotBelowNext) {
             const start = i;
             i++;
+            if (dotBelowNext)
+                i++; // consume the combining dot
             // consume any trailing marks (e.g. a stray ˤ) so they don't leak
             while (i < chars.length && isMark(chars[i]))
                 i++;
-            const base = c === U.EMPHATIC_T ? 't' : 's';
+            const base = c === U.EMPHATIC_T || c === U.T_DOT || c === 't' ? 't' : 's';
             const pm = emphaticPiper(base);
             units.push({
                 kind: 'consonant',
@@ -360,17 +366,62 @@ export function toEspeakString(units) {
     }
     return out.trim();
 }
-/**
- * Flatten normalized units into the ordered Piper (neural) phoneme-token list.
- * Each token is one entry to feed piper's `phonemes_to_ids()` for the fine-tuned
- * Arabic voice. Leading/trailing spaces are trimmed. Syllable boundaries are
- * dropped (their `piper` is []).
- *
- * NOTE: these tokens target espeak-`ar` output (t̪/s̪, χ, aː …). Before shipping,
- * validate every token is a key in the trained voice's `phoneme_id_map`; any
- * OOV token (e.g. e/o/ɡ if the Arabic voice lacks them) should be remapped to
- * the nearest in-inventory phone at synth time. See scripts/ebl-to-piper.mjs.
- */
+const DENTAL = '\u032a'; // ̪ combining bridge below — espeak-ar's emphatic mark, trained on kareem
+/** Piper tokens for one unit on an Arabic-trained voice (espeak `ar` inventory). */
+function arabicTokens(u, backNext) {
+    if (u.kind === 'stress')
+        return [u.ipa === U.STRESS_SECOND ? 'ˌ' : 'ˈ'];
+    if (u.kind === 'space')
+        return [' '];
+    if (u.kind === 'syllable')
+        return [];
+    if (u.kind === 'vowel') {
+        const base = u.ipa[0];
+        const back = backNext.v && (base === 'a' || base === 'i'); // espeak-ar: s̪ˈa.ːb, s̪ˈi.ːb
+        backNext.v = false;
+        const out = [base === 'e' ? 'e' : base === 'o' ? 'o' : base];
+        if (back)
+            out.push('.');
+        if ((u.length ?? 0) >= 1)
+            out.push(U.LENGTH); // ːː is realized by the duration stretch
+        return out;
+    }
+    // consonant
+    const raw = u.ipa.normalize('NFD').replace(/[\u0323\u02e4\u0334]/g, '');
+    const base = raw.replace(/[ᵵṭ]/g, 't').replace(/[ᵴṣ]/g, 's');
+    if (u.emphatic) {
+        // ṭ → t̪ˤ (t̪ is what espeak-ar emits for ط; ˤ is trained via ض dˤ and measured
+        // to lower F2 a further ~90 Hz). ṣ → s̪ plus the backed vowel allophone next.
+        if (base.startsWith('t') && !base.includes('s'))
+            return ['t', DENTAL, 'ˤ'];
+        backNext.v = true;
+        if (base.includes('t'))
+            return ['t', 's', DENTAL]; // affricate ṣ (t͡sˤ)
+        return ['s', DENTAL];
+    }
+    const map = {
+        q: ['q'], x: ['χ'], 'χ': ['χ'], h: ['h'], 'ʔ': ['ʔ'], 'ʃ': ['ʃ'], j: ['j'], g: ['ɡ'], 'ɡ': ['ɡ'],
+        't͡s': ['t', 's'], 'd͡z': ['d', 'z'],
+    };
+    if (map[base])
+        return map[base];
+    return [...base].filter((ch) => ch !== U.TIE);
+}
+/** Piper token stream for a voice profile. 'english' keeps the 0.3.1 mapping. */
+export function toPiperPhonemesFor(units, profile) {
+    if (profile === 'english')
+        return toPiperPhonemes(units);
+    const out = [];
+    const backNext = { v: false };
+    for (const u of units)
+        for (const t of arabicTokens(u, backNext))
+            out.push(t);
+    while (out.length && out[0] === ' ')
+        out.shift();
+    while (out.length && out[out.length - 1] === ' ')
+        out.pop();
+    return out;
+}
 export function toPiperPhonemes(units) {
     const out = [];
     for (const u of units) {
@@ -389,6 +440,7 @@ export function toPiperPhonemes(units) {
  * voice. This is the wiring point between eBL's IPA and the audio engine.
  */
 export function normalizeForPiper(ipa, opts = {}) {
+    const profile = opts.profile ?? 'english';
     const norm = normalize(ipa, opts);
     const ultralongVowelIndices = [];
     let vowelCount = 0;
@@ -399,10 +451,13 @@ export function normalizeForPiper(ipa, opts = {}) {
             ultralongVowelIndices.push(vowelCount);
         vowelCount++;
     }
-    const notes = [...new Set(norm.units.map((u) => u.piperNote).filter(Boolean))];
+    // English-voice approximation notes do not apply on an Arabic-trained voice: q, χ, ʔ
+    // and the emphatics are all in-distribution there.
+    const notes = profile === 'arabic' ? [] : [...new Set(norm.units.map((u) => u.piperNote).filter(Boolean))];
     return {
-        tokens: toPiperPhonemes(norm.units),
-        espeakVoice: 'en',
+        tokens: toPiperPhonemesFor(norm.units, profile),
+        espeakVoice: profile === 'arabic' ? 'ar' : 'en',
+        profile,
         hasUltralong: norm.hasUltralong,
         ultralongVowelIndices,
         vowelCount,

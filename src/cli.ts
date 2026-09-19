@@ -9,7 +9,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { synthesizeDetailed, explain } from './synthesize.js';
-import { voiceAvailable, resolveVoicePath, DEFAULT_VOICE } from './piper.js';
+import { voiceAvailable, resolveVoicePath, emphaticVoicePath, DEFAULT_VOICE, EMPHATIC_VOICE } from './piper.js';
 import type { Emphatic, Lengths } from './normalizer.js';
 import type { Mode, Engine, Dialect, EmphaticPolicy } from './synthesize.js';
 
@@ -29,6 +29,7 @@ interface Args {
   explain?: boolean;
   detail?: boolean;
   fetchVoice?: boolean;
+  fetchVoiceName?: string;
   checkVoice?: boolean;
   help?: boolean;
   version?: boolean;
@@ -41,7 +42,9 @@ USAGE
   ebl-tts --fetch-voice
 
 SETUP (once)
-  --fetch-voice          download the neural voice (${DEFAULT_VOICE}, ~61 MB)
+  --fetch-voice [arabic] download the neural voice (${DEFAULT_VOICE}, ~61 MB);
+                         with 'arabic': the Arabic-trained voice (${EMPHATIC_VOICE}, ~63 MB)
+                         that renders ṭ/ṣ/q natively (used automatically for such words)
                          into ~/.cache/ebl-akkadian-phonemes/voices/
   --check-voice          report whether a neural voice is installed, and where
 
@@ -64,7 +67,10 @@ OPTIONS
   --lengths <l>          2tier | 3tier               (default: 3tier)
                            3tier honors eBL's extra-long â/ê/î/û
   --ultralong-factor <n> extra-long vs long duration multiple (default: 1.8)
-  --voice <file>         path to a Piper .onnx voice (overrides the default)
+  --voice <file|name>    a Piper .onnx voice path, or 'english' (default, ${DEFAULT_VOICE})
+                         or 'arabic' (${EMPHATIC_VOICE}: native ṭ ṣ q ḫ and phonemic
+                         vowel length — measured: the English voice renders ū no longer
+                         than u; the Arabic voice keeps all three tiers distinct)
   --length-scale <n>     NEURAL speaking rate; higher = slower (default: 1.0)
   --wpm <n>              REFERENCE speaking rate, words/minute (default: 150)
   --dialect <d>          OB | OA | SB | NA | NB      (reserved)
@@ -124,9 +130,17 @@ function parse(argv: string[]): Args {
       case '--length-scale':
         a.lengthScale = Number(next());
         break;
-      case '--voice':
-        a.voicePath = next();
+      case '--voice': {
+        // 0.3.2: 'arabic' / 'english' name the two known voices; anything else is a path.
+        const v = next();
+        a.voicePath =
+          v === 'arabic' || v === EMPHATIC_VOICE
+            ? (emphaticVoicePath() ?? (() => { throw new Error(`--voice arabic: ${EMPHATIC_VOICE} is not installed. Run:  ebl-tts --fetch-voice arabic`); })())
+            : v === 'english' || v === DEFAULT_VOICE
+              ? undefined
+              : v;
         break;
+      }
       case '--ultralong-factor':
         a.ultralongFactor = Number(next());
         break;
@@ -138,6 +152,7 @@ function parse(argv: string[]): Args {
         break;
       case '--fetch-voice':
         a.fetchVoice = true;
+        if (argv[i + 1] && !argv[i + 1].startsWith('-')) a.fetchVoiceName = argv[++i];
         break;
       case '--check-voice':
         a.checkVoice = true;
@@ -173,13 +188,18 @@ async function main() {
 
   if (args.fetchVoice) {
     const { fetchVoice } = await import('./fetch-voice.js');
-    await fetchVoice();
+    const which = args.fetchVoiceName;
+    const name = which === undefined || which === 'english' || which === DEFAULT_VOICE ? DEFAULT_VOICE
+      : which === 'arabic' || which === 'emphatic' || which === EMPHATIC_VOICE ? EMPHATIC_VOICE : which;
+    await fetchVoice(undefined, undefined, name);
     return;
   }
 
   if (args.checkVoice) {
     if (voiceAvailable(args.voicePath)) {
       process.stdout.write(`neural voice OK: ${resolveVoicePath(args.voicePath)}\n`);
+      const ar = emphaticVoicePath();
+      process.stdout.write(ar ? `emphatic (Arabic-trained) voice OK: ${ar}\n` : `emphatic (Arabic-trained) voice NOT installed: ṭ/ṣ words fall back to espeak. Run:  ebl-tts --fetch-voice arabic\n`);
     } else {
       process.stdout.write(
         `neural voice NOT installed. Run:  ebl-tts --fetch-voice\n` +
