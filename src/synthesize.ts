@@ -43,6 +43,8 @@ import { renderPhonemes } from './espeak.js';
 import { renderPiperTokens, loadVoice, voiceProfile, emphaticVoicePath, DEFAULT_VOICE, EMPHATIC_VOICE } from './piper.js';
 import type { VoiceProfile } from './piper.js';
 import { renderOmniVoiceUnits, OMNIVOICE_REF_VOICE, type OmniVoiceOptions } from './omnivoice.js';
+import { renderElevenLabsText, type ElevenLabsOptions } from './elevenlabs.js';
+import { toArabicScript } from './arabic-script.js';
 import {
   concatCrossfade,
   encodeWav,
@@ -65,7 +67,7 @@ export type Mode = 'reference' | 'neural';
  *               natural/expressive, near-real-time, but consumes ARPABET, so it
  *               leans on the SAME espeak+dsp hybrid for emphatics and length.
  */
-export type Engine = 'piper' | 'omnivoice';
+export type Engine = 'piper' | 'omnivoice' | 'elevenlabs';
 export type Dialect = 'OB' | 'OA' | 'SB' | 'NA' | 'NB';
 /** How emphatics (ṭ/ṣ) are rendered when mode is 'neural'. */
 export type EmphaticPolicy = 'auto' | 'neural' | 'reference';
@@ -112,6 +114,14 @@ export interface SynthesizeOptions {
    * Set to '' to disable and fall back to the espeak reference engine as in 0.3.1.
    */
   emphaticVoicePath?: string;
+  /** engine:'elevenlabs' — API key / voice id / model / settings (see elevenlabs.ts). */
+  elevenlabs?: ElevenLabsOptions;
+  /**
+   * engine:'elevenlabs' text form. 'auto' (default) = vowelled Arabic script when the word is
+   * spellable (ṣ ṭ q ḫ ʾ native to the model — the form that passed eBL review 2026-09-21),
+   * else the IPA text; 'arabic' forces Arabic (error if unspellable); 'ipa' forces IPA text.
+   */
+  script?: 'auto' | 'arabic' | 'ipa';
   /** NEURAL only: VITS length_scale, higher = slower. Default from the voice config. */
   lengthScale?: number;
   /** NEURAL only: VITS noise_scale. Default from the voice config. */
@@ -278,7 +288,24 @@ async function renderNeural(
   // What the neural voice actually consumed, for --detail (IPA for Piper, ARPABET
   // for OmniVoice — reporting Piper's IPA on the OmniVoice path would be a lie).
   let phonemesReported = n.tokens.join(' ');
-  if (engine === 'omnivoice') {
+  if (engine === 'elevenlabs') {
+    // The reviewed route: Arabic-script spelling to a multilingual voice (arabic-script.ts),
+    // IPA text for words Arabic cannot spell. Length tier applied below like every engine.
+    const ar = toArabicScript(n.units);
+    const want = opts.script ?? 'auto';
+    let text: string;
+    if (want === 'arabic' && !ar.representable) throw new Error(`script:'arabic' but word is not spellable in Arabic: ${ar.notes.join('; ')}`);
+    if (want === 'ipa' || (want === 'auto' && !ar.representable)) {
+      text = '/' + ipa.replace(/^\[|\]$/g, '') + '/';
+      if (want === 'auto') notes.push(`sent as IPA text (Arabic script not representable: ${ar.notes.join('; ')})`);
+    } else {
+      text = ar.text;
+      for (const note of ar.notes) notes.push(note);
+    }
+    const r = await renderElevenLabsText(text, opts.elevenlabs);
+    pcm = r.pcm;
+    phonemesReported = text;
+  } else if (engine === 'omnivoice') {
     // OmniVoice consumes ARPABET (built from the same normalized units) and runs
     // in a local Python service. It already first-burst-trims and peak-normalizes.
     const r = await renderOmniVoiceUnits(n.units, opts.omnivoice);
@@ -306,7 +333,9 @@ async function renderNeural(
   // (measured RMS 0.0002), but low-level speech — a fricative onset, a final
   // release — can sit under 1% of full scale. Trim at 0.4% with 15 ms of padding
   // so dead air goes and audible detail stays.
-  const trimmed = trimSilence(pcm, 0.004, 15);
+  // ElevenLabs pads ~1.7 s of room tone at about -40 dBFS after the word; trim that at -34 dBFS so the
+  // extra-long stretch lands on the vowel, not the tail (measured 2026-09-19: 4.05 s clip for a 0.7 s word).
+  const trimmed = engine === 'elevenlabs' ? trimSilence(pcm, 0.02, 60) : trimSilence(pcm, 0.004, 15);
   if (!n.hasUltralong)
     return {
       pcm: trimmed,
@@ -450,6 +479,8 @@ export async function synthesizeDetailed(
       const explicitIsArabic = opts.voicePath ? voiceProfile((await loadVoice(opts.voicePath)).config) === 'arabic' : false;
       if (explicitIsArabic) {
         // caller already chose an Arabic-trained voice: the emphatics are in-distribution there
+      } else if ((opts.engine ?? 'piper') === 'elevenlabs') {
+        // Arabic-script spelling gives the multilingual voice native ṣ ṭ q ḫ: no diversion needed.
       } else if (ar && (opts.engine ?? 'piper') === 'piper') {
         opts = { ...opts, voicePath: ar };
         engineReason =
@@ -489,7 +520,9 @@ export async function synthesizeDetailed(
     voice:
       neuralEngine === 'omnivoice'
         ? OMNIVOICE_REF_VOICE
-        : opts.voicePath ?? DEFAULT_VOICE,
+        : neuralEngine === 'elevenlabs'
+          ? `elevenlabs:${opts.elevenlabs?.voiceId ?? process.env.EBL_ELEVENLABS_VOICE ?? '?'}`
+          : opts.voicePath ?? DEFAULT_VOICE,
     ultralong: r.ultralong,
     ultralongFactor: r.ultralong === 'none' || r.ultralong === 'disabled' ? 1 : factor,
     ultralongSpanSeconds: r.spanSeconds,
@@ -527,6 +560,7 @@ export function explain(ipa: string, opts: SynthesizeOptions = {}) {
       approximations: piper.notes,
       /** 0.3.2: the token stream an Arabic-trained voice (ar_JO-kareem-medium) receives */
       arabicTokens: arabic.tokens,
+      arabicScript: toArabicScript(norm.units),
       emphaticVoiceInstalled: emphaticVoicePath(),
     },
     units: norm.units.map((u) => ({

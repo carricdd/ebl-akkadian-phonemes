@@ -1,7 +1,7 @@
 {
   "name": "@ebl/akkadian-phonemes",
-  "version": "0.3.2",
-  "description": "Synthesize Akkadian pronunciation from electronic Babylonian Library (eBL) IPA \u2014 emphatics \u1e6d \u1e63, uvular q, \u1e2b and the three vowel lengths on an Arabic-trained Piper voice (0.3.2, measured), npm module. Neural voices: Piper (VITS) English or Arabic, or OmniVoice; reference engine: espeak-ng (WASM).",
+  "version": "0.3.3",
+  "description": "Synthesize Akkadian pronunciation from electronic Babylonian Library (eBL) IPA. Engines: ElevenLabs via Arabic-script respelling (passed eBL review 2026-09-21, pharyngealized \u1e63 \u1e6d q, three vowel lengths), Piper (English or Arabic voice, free), OmniVoice, espeak-ng reference. npm module + CLI.",
   "type": "module",
   "exports": {
     ".": {

@@ -155,7 +155,41 @@ console.log(r.notes);                // [] — nothing was approximated
 
 ---
 
-## 4. The two engines, and why there are two
+## 4. Choosing a voice: accuracy vs cost (0.3.3)
+
+Every route takes the same eBL IPA and runs the same emphatic policy and
+extra-long stretch; only the voice differs. Pick by what you can afford and what
+the listener must hear. Nothing is bundled that costs money; the paid route only
+runs when its key is in the environment.
+
+| engine | sound | ṣ ṭ q ḫ | three vowel lengths | cost | runs | status |
+|---|---|---|---|---|---|---|
+| `--engine elevenlabs` (Arabic-script spelling) | human | native, pharyngealized | ā by spelling, â by stretch | paid API (about $0.002 per word at 2026 list prices) | anywhere with a key | **passed eBL review 2026-09-21** |
+| `--engine piper --voice arabic` | robotic-clear | trained tokens, measured F2 shift | all three measured | free | local, 63 MB | works; owner judged the timbre "a mumbling robot" |
+| `--engine piper` (English voice, default) | robotic-natural | no (falls back to espeak) | long ≈ short | free | local, 61 MB | 0.3.1 default, kept for compatibility |
+| `--engine omnivoice` | human-ish clone | no (falls back to espeak) | by stretch | free | local Python + GPU/MPS | experimental |
+| `--mode reference` (espeak-ng) | synthetic | dental only, not pharyngealized (measured) | by stretch | free | anywhere, WASM | exact phone control, poor voice |
+
+Recommendation for a public dictionary: `elevenlabs` for the served clips (a few
+dollars for the whole dictionary; review each batch by ear), `piper --voice arabic`
+as the free fallback that keeps the contrasts, and the reviewed clips as the
+reference set any new engine must match. The engine list is expected to change;
+see the standing research lane in §13.
+
+```shell
+export ELEVENLABS_API_KEY=…      # never committed
+export EBL_ELEVENLABS_VOICE=…    # the voice you are licensed to use
+ebl-tts --ipa "[ˈsˤaː.bu]" --engine elevenlabs --detail -o sabu.wav
+#   phonemes: صَابُ          <- what the voice was sent
+ebl-tts --ipa "[ˈtˤup.pu]" --engine elevenlabs --detail -o tuppu.wav
+#   note: sent as IPA text (Arabic script not representable: no Arabic letter for /p/)
+```
+
+What Arabic script cannot spell falls back to IPA text automatically (`--script
+auto`): words with p, e or o. `toArabicScript()` is exported for anyone building
+a different backend on the same respelling.
+
+## 4b. The two engines, and why there are two
 
 | | `mode: 'neural'` (default) | `mode: 'reference'` |
 |---|---|---|

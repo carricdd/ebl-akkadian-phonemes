@@ -21,6 +21,10 @@ export {
   OMNIVOICE_REF_VOICE,
 } from './omnivoice.js';
 export type { OmniVoiceOptions, ArpabetResult } from './omnivoice.js';
+export { toArabicScript } from './arabic-script.js';
+export type { ArabicScriptResult } from './arabic-script.js';
+export { renderElevenLabsText, elevenlabsAvailable, ELEVENLABS_REVIEWED_SETTINGS } from './elevenlabs.js';
+export type { ElevenLabsOptions } from './elevenlabs.js';
 export {
   DEFAULT_VOICE,
   EMPHATIC_VOICE,

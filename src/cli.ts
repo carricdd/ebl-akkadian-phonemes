@@ -25,6 +25,7 @@ interface Args {
   wpm?: number;
   lengthScale?: number;
   voicePath?: string;
+  script?: 'auto' | 'arabic' | 'ipa';
   ultralongFactor?: number;
   explain?: boolean;
   detail?: boolean;
@@ -54,11 +55,16 @@ OPTIONS
   --mode <m>             neural | reference          (default: neural)
                            neural    = a neural voice (see --engine), human-sounding
                            reference = espeak-ng, robotic but phonetically exact
-  --engine <e>           piper | omnivoice           (default: piper)
+  --engine <e>           piper | omnivoice | elevenlabs   (default: piper)
                            which NEURAL voice runs when mode is neural. Swaps the
                            voice ONLY — espeak still owns emphatics and dsp still
                            owns vowel length, so both stay phonetically faithful.
                            omnivoice needs the local Python service (see README).
+                           elevenlabs = paid API, human-quality; the route that passed eBL
+                           review 2026-09-21 (Arabic-script spelling). Needs ELEVENLABS_API_KEY
+                           and EBL_ELEVENLABS_VOICE in the environment.
+  --script <s>           auto | arabic | ipa   (elevenlabs only; default auto = Arabic script
+                           when spellable, else IPA text)
   --emphatics <p>        auto | neural | reference   (default: auto)
                            how ṭ/ṣ are handled in neural mode; 'auto' renders
                            emphatic-bearing words on the reference engine
@@ -141,6 +147,9 @@ function parse(argv: string[]): Args {
               : v;
         break;
       }
+      case '--script':
+        a.script = next() as 'auto' | 'arabic' | 'ipa';
+        break;
       case '--ultralong-factor':
         a.ultralongFactor = Number(next());
         break;
@@ -232,6 +241,7 @@ async function main() {
     wpm: args.wpm,
     lengthScale: args.lengthScale,
     voicePath: args.voicePath,
+    script: args.script,
     ultralongFactor: args.ultralongFactor,
   };
 
