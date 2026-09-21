@@ -692,10 +692,22 @@ the Arabic-trained Piper voice does all of it because espeak-ng `ar` writes
 * accepts the transliteration forms ṭ ṣ (U+1E6D/U+1E63, or t/s + U+0323) as
   emphatic input alongside eBL's ᵵ ᵴ tˤ sˤ.
 
-Recommendation for a dictionary: `--voice arabic` for every word, so the timbre
-is constant and all three vowel lengths survive. The English voice stays the
-default in 0.3.2 only for compatibility; listen to `demo/review-0.3.2/` and
-decide. Both voices are rhasspy/piper-voices, same license terms.
+**Reviewer verdict (Enrique Jiménez, eBL, 2026-09-21):** listening to minimal
+pairs rendered by ElevenLabs v3 from Arabic-script spellings
+(https://gesztu.com/review/akkadian-clips-2026-09-19/): "it sounds correct to me.
+I would go with the Arabic-style pharyngealized." So `emphatic: 'pharyngealized'`
+stays the default for what a dictionary should play; the ejective reconstruction
+argued in the literature (Geers' Law, Kouwenberg 2003) remains available as
+`emphatic: 'ejective'` for anyone rendering the reconstruction rather than the
+reading convention.
+
+On the voices: `--voice arabic` gives the trained emphatics and all three vowel
+lengths but was judged robotic by the project owner; for human-quality output the
+route that passed review is the ElevenLabs v3 voice fed Arabic-script spellings
+plus this package's WSOLA stretch for the extra-long tier. NOTE on licensing:
+`ar_JO-kareem-medium` is fine-tuned from non-commercial Blizzard-2011 data
+(project audit 2026-07); it is not license-clean for redistribution and stays a
+local experiment, contrary to the "same license terms" wording in earlier drafts.
 
 ### Criterion 1 — "glottalised consonants (ṭ and ṣ)"
 
